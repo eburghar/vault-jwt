@@ -1,4 +1,5 @@
 use isahc::http::StatusCode;
+use serde::Deserialize;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -28,4 +29,10 @@ pub enum Error {
 		#[from]
 		source: serde_json::error::Error,
 	},
+}
+
+/// Vault errors deserialized
+#[derive(Debug, Deserialize)]
+pub struct VaultErrors {
+	pub errors: Vec<String>,
 }

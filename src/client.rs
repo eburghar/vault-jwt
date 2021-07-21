@@ -1,51 +1,16 @@
-use crate::error::{Error, Result};
+use crate::{
+	auth::Auth,
+	error::{Error, Result, VaultErrors},
+	secret::Secret,
+};
 
 use isahc::{
 	config::{CaCertificate, Configurable},
 	http::{Request, StatusCode},
 	AsyncReadResponseExt, HttpClient,
 };
-use serde::Deserialize;
 use serde_json::Value;
-use std::{
-	collections::HashMap,
-	fs::File,
-	io::Read,
-	time::{Duration, SystemTime},
-};
-
-/// Keep token from vault login response
-#[derive(Debug, Deserialize)]
-pub struct Auth {
-	/// token used with all api calls
-	pub client_token: String,
-	/// the validity of the token counting from time
-	pub lease_duration: Duration,
-	/// if the token needs refresh
-	pub renewable: bool,
-	/// time of the successful login
-	pub time: SystemTime,
-}
-
-impl Auth {
-	/// check if the token is still valid
-	pub fn is_valid(&self) -> bool {
-		self.client_token != "" && SystemTime::now() < self.time + self.lease_duration
-	}
-
-	/// check if the token needs a renewal
-	pub fn to_renew(&self) -> bool {
-		self.client_token != ""
-			&& self.renewable
-			&& SystemTime::now() > self.time + self.lease_duration * 2 / 3
-	}
-}
-
-/// Vault errors deserialized
-#[derive(Debug, Deserialize)]
-struct VaultErrors {
-	errors: Vec<String>,
-}
+use std::{collections::HashMap, fs::File, io::Read, time::Duration};
 
 /// Vault client that cache its auth tokens
 pub struct VaultClient {
@@ -76,16 +41,18 @@ impl VaultClient {
 		})
 	}
 
+	pub fn is_logged(&self, role: &str) -> bool {
+		self.auth
+			.get(role)
+			.filter(|v| v.is_valid() && !v.to_renew())
+			.is_some()
+	}
+
 	/// Log in to the vault client and return Auth.
 	pub async fn login(&mut self, role: &str) -> Result<&Auth> {
 		// login if we are not already logged in or if it's time to renew token
-		let do_login = self
-			.auth
-			.get(role)
-			.filter(|v| v.is_valid() && !v.to_renew())
-			.is_none();
 
-		if do_login {
+		if !self.is_logged(role) {
 			let url = format!("{}/auth/kubernetes/login", &self.url);
 			let body = format!(r#"{{"role": "{}", "jwt": "{}"}}"#, role, &self.jwt);
 			let mut res = self
@@ -104,15 +71,14 @@ impl VaultClient {
 					.as_u64()
 					.unwrap_or(0u64);
 				let renewable = auth_value["auth"]["renewable"].as_bool().unwrap_or(false);
-				let auth = Auth {
-					client_token: auth_value["auth"]["client_token"]
-						.as_str()
-						.unwrap_or("")
-						.to_owned(),
-					lease_duration: Duration::from_secs(lease_duration),
-					renewable,
-					time: SystemTime::now(),
-				};
+				let auth = Auth::new(
+					auth_value["auth"]["client_token"].as_str().unwrap_or(""),
+					if renewable {
+						Some(Duration::from_secs(lease_duration))
+					} else {
+						None
+					},
+				);
 				// insert and forget old value if any
 				let _ = self.auth.insert(role.to_owned(), auth);
 			} else {
@@ -129,7 +95,7 @@ impl VaultClient {
 	}
 
 	/// Get a secret from vault server and reschedule a renew with role if necessary
-	pub async fn get_secret(&self, role: &str, path: &str) -> Result<Value> {
+	pub async fn get_secret(&self, role: &str, path: &str) -> Result<Secret> {
 		if let Some(auth) = self.auth.get(role) {
 			let url = format!("{}/{}", &self.url, path);
 			let request = Request::get(url)
@@ -144,13 +110,21 @@ impl VaultClient {
 			let status = res.status();
 			return if status == StatusCode::OK {
 				// parse vault response
-				let secret_value: Value = res
+				let mut secret_value: Value = res
 					.json()
 					.await
 					.map_err(|e| Error::ParseError { source: e })?;
 
-				// return the parsed secret
-				Ok(secret_value)
+				let renewable = secret_value["renewable"].as_bool().unwrap_or(false);
+				let duration = if renewable {
+					Some(Duration::from_secs(
+						secret_value["lease_duration"].as_u64().unwrap_or(0u64) * 2 / 3,
+					))
+				} else {
+					None
+				};
+				// return the parsed secret (skip the metadata)
+				Ok(Secret::new(secret_value["data"]["data"].take(), duration))
 			} else {
 				// parse vault error
 				let errors: VaultErrors = res
