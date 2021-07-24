@@ -123,8 +123,8 @@ impl VaultClient {
 				} else {
 					None
 				};
-				// return the parsed secret (skip the metadata)
-				Ok(Secret::new(secret_value["data"]["data"].take(), duration))
+				// return the parsed secret (only the data part)
+				Ok(Secret::new(secret_value["data"].take(), duration))
 			} else {
 				// parse vault error
 				let errors: VaultErrors = res
