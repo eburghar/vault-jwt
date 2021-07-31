@@ -1,6 +1,6 @@
 [package]
 name = "vaultk8s"
-version = "0.3.0"
+version = "0.4.0"
 description = "Library crate to use vault with k8s authentication"
 authors = ["Éric BURGHARD <eric@itsufficient.me>"]
 edition = "2018"

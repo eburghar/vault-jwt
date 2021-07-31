@@ -9,7 +9,7 @@ use isahc::{
 	http::{Request, StatusCode},
 	AsyncReadResponseExt, HttpClient,
 };
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::{collections::HashMap, fs::File, io::Read, time::Duration};
 
 /// Vault client that cache its auth tokens
@@ -95,18 +95,39 @@ impl VaultClient {
 	}
 
 	/// Get a secret from vault server and reschedule a renew with role if necessary
-	pub async fn get_secret(&self, role: &str, path: &str) -> Result<Secret> {
+	pub async fn get_secret(
+		&self,
+		role: &str,
+		method: &str,
+		path: &str,
+		kwargs: Option<&Vec<(&str, &str)>>,
+	) -> Result<Secret> {
 		if let Some(auth) = self.auth.get(role) {
-			let url = format!("{}/{}", &self.url, path);
-			let request = Request::get(url)
+			let uri = format!("{}/{}", &self.url, path);
+			// transform the kwargs into a json object
+			let body = kwargs
+				.map(|kwargs| {
+					kwargs.iter().fold(Map::new(), |mut m, (k, v)| {
+						m.insert((*k).to_owned(), Value::String((*v).to_owned()));
+						m
+					})
+				})
+				.map(|o| Value::Object(o))
+				.unwrap_or(Value::Null);
+			// build the request
+			let request = Request::builder()
+				.uri(uri)
+				.method(method)
 				.header("X-Vault-Token", auth.client_token.as_str())
-				.body(())
+				.body(body.to_string())
 				.map_err(|e| Error::HttpError { source: e })?;
+			// async send the request
 			let mut res = self
 				.client
 				.send_async(request)
 				.await
 				.map_err(|e| Error::ClientError { source: e })?;
+			// handle the response
 			let status = res.status();
 			return if status == StatusCode::OK {
 				// parse vault response
@@ -115,8 +136,8 @@ impl VaultClient {
 					.await
 					.map_err(|e| Error::ParseError { source: e })?;
 
-				let renewable = secret_value["renewable"].as_bool().unwrap_or(false);
-				let duration = if renewable {
+				let leased = secret_value["lease_duration"].as_bool().unwrap_or(false);
+				let duration = if leased {
 					Some(Duration::from_secs(
 						secret_value["lease_duration"].as_u64().unwrap_or(0u64) * 2 / 3,
 					))
