@@ -136,14 +136,11 @@ impl VaultClient {
 					.await
 					.map_err(|e| Error::ParseError { source: e })?;
 
-				let leased = secret_value["lease_duration"].as_bool().unwrap_or(false);
-				let duration = if leased {
-					Some(Duration::from_secs(
-						secret_value["lease_duration"].as_u64().unwrap_or(0u64) * 2 / 3,
-					))
-				} else {
-					None
-				};
+				let duration = secret_value
+					.get("lease_duration")
+					.map(|o| o.as_u64().unwrap_or(0u64))
+					.filter(|o| *o != 0u64)
+					.map(|o| Duration::from_secs(o * 2 / 3));
 				// return the parsed secret (only the data part)
 				Ok(Secret::new(secret_value["data"].take(), duration))
 			} else {
