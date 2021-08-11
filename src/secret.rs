@@ -38,11 +38,23 @@ impl Secret {
 	}
 
 	pub fn duration(&self) -> Option<Duration> {
-		self.lease.as_ref().and_then(|l| Some(l.lease_duration))
+		self.lease.as_ref().and_then(|l| {
+			if l.lease_duration != Duration::from_secs(0) {
+				Some(l.lease_duration)
+			} else {
+				None
+			}
+		})
 	}
 
 	pub fn renew_delay(&self) -> Option<Duration> {
-		self.lease.as_ref().and_then(|l| Some(l.renew_delay))
+		self.lease.as_ref().and_then(|l| {
+			if l.renew_delay != Duration::from_secs(0) {
+				Some(l.renew_delay)
+			} else {
+				None
+			}
+		})
 	}
 }
 
