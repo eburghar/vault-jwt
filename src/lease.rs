@@ -21,11 +21,13 @@ impl Lease {
 
 	/// returns true if the lease is still valid
 	pub fn is_valid(&self) -> bool {
-		SystemTime::now() < self.time + self.lease_duration
+		// TODO: replace with .is_zero() when stable
+		self.lease_duration != Duration::from_secs(0) && SystemTime::now() < self.time + self.lease_duration
 	}
 
 	/// returns true if the lease is about to expire
 	pub fn to_renew(&self) -> bool {
-		SystemTime::now() > self.time + self.renew_delay
+		// TODO: replace with .is_zero() when stable
+		self.lease_duration != Duration::from_secs(0) && SystemTime::now() > self.time + self.renew_delay
 	}
 }

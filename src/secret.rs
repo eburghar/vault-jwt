@@ -1,7 +1,7 @@
 use crate::lease::Lease;
 
-use std::time::Duration;
 use serde_json::Value;
+use std::time::Duration;
 
 /// A secret is a json value tied to an optional lease
 #[derive(Debug)]
@@ -25,7 +25,11 @@ impl Secret {
 	}
 
 	pub fn has_lease(&self) -> bool {
-		self.lease.is_some()
+		return match self.lease {
+			// TODO: replace with .is_zero() when stable
+			Some(ref lease) if lease.lease_duration != Duration::from_secs(0) => true,
+			_ => false,
+		};
 	}
 
 	/// check if the secret need to be renewed
@@ -63,12 +67,18 @@ fn without_lease_needs_no_renew() {
 
 #[test]
 fn with_valid_lease_is_valid() {
-	let secret = Secret::new(Value::String("secret".to_owned()), Some(Duration::from_secs(10)));
+	let secret = Secret::new(
+		Value::String("secret".to_owned()),
+		Some(Duration::from_secs(10)),
+	);
 	assert_eq!(secret.is_valid(), true)
 }
 
 #[test]
 fn with_expired_lease_is_invalid() {
-	let secret = Secret::new(Value::String("secret".to_owned()), Some(Duration::from_secs(0)));
+	let secret = Secret::new(
+		Value::String("secret".to_owned()),
+		Some(Duration::from_secs(0)),
+	);
 	assert_eq!(secret.is_valid(), false)
 }
