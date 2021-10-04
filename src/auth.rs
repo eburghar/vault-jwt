@@ -3,6 +3,7 @@ use crate::lease::Lease;
 use std::time::Duration;
 
 /// tie an auth token to a lease
+#[derive(Debug)]
 pub struct Auth {
 	pub client_token: String,
 	pub lease: Option<Lease>,

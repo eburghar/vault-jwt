@@ -29,6 +29,10 @@ pub enum Error {
 		#[from]
 		source: serde_json::error::Error,
 	},
+	#[error("unable to get vault mount")]
+	MountsNotFound,
+	#[error("undefined mount type {0}")]
+	UndefinedMountType(String),
 }
 
 /// Vault errors deserialized
