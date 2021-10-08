@@ -31,8 +31,12 @@ impl<'a> SecretPathIterator<'a> {
 	/// simply return remainder
 	pub fn yield_remainder(&mut self) -> Option<&'a str> {
 		let remainder = self.remainder;
-		self.remainder = "";
-		Some(remainder)
+		if self.remainder.is_empty() {
+			None
+		} else {
+			self.remainder = "";
+			Some(remainder)
+		}
 	}
 
 	/// returns the slice up to ':' and advances after the ':'
@@ -56,11 +60,7 @@ impl<'a> SecretPathIterator<'a> {
 		match self.remainder.find("#") {
 			Some(pos) => {
 				let res = &self.remainder[..pos];
-				self.remainder = if pos + 1 < self.remainder.len() {
-					&self.remainder[pos + 1..]
-				} else {
-					""
-				};
+				self.remainder = &self.remainder[pos..];
 				Some(res)
 			}
 			None => self.yield_remainder(),
@@ -109,7 +109,8 @@ where
 			T::try_from(backend_str).map_err(|_| Error::UnknowBackend(backend_str.to_owned()))?;
 		let args_ = it.next().ok_or(Error::NoArgs(path.to_owned()))?;
 		let path = it.next().ok_or(Error::NoPath(args_.to_owned()))?;
-		let anchor = it.next().unwrap_or("");
+		// # remove # from the anchor
+		let anchor = it.next().and_then(|s| Some(&s[1..]));
 		// split simple and keyword arguments in separate lists
 		let mut args = Vec::with_capacity(args_.len());
 		let mut kwargs = Vec::with_capacity(args_.len());
@@ -130,7 +131,7 @@ where
 				Some(kwargs)
 			},
 			path,
-			anchor: if anchor == "" { None } else { Some(anchor) },
+			anchor,
 		})
 	}
 }
@@ -187,7 +188,7 @@ mod tests {
 
 	#[test]
 	fn parse_const_str() {
-		let path = "const:str:https://localhost:8200";
+		let path = "const:str:https://localhost:8200#";
 		let secret_path = SecretPath::try_from(path).unwrap();
 		assert_eq!(
 			secret_path,
@@ -196,7 +197,7 @@ mod tests {
 				args: vec!["str"],
 				kwargs: None,
 				path: "https://localhost:8200",
-				anchor: None
+				anchor: Some("")
 			}
 		);
 	}

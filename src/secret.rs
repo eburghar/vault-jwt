@@ -78,6 +78,20 @@ where
 	pub anchor: Option<&'a str>,
 }
 
+impl<'a, T> SecretPath<'a, T>
+where
+	T: TryFrom<&'a str> + fmt::Display,
+{
+    /// concatenate path and anchor
+	pub fn get_path_anchor(&self) -> String {
+		if let Some(anchor) = self.anchor {
+			self.path.to_owned() + "#" + anchor
+		} else {
+			self.path.to_owned()
+		}
+	}
+}
+
 /// Serialize a SecretPath
 impl<'a, T> fmt::Display for SecretPath<'a, T>
 where

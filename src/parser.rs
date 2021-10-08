@@ -45,8 +45,7 @@ impl From<Err<Error>> for Error {
 	fn from(e: Err<Error>) -> Self {
 		match e {
 			Err::Incomplete(_) => Error::Incomplete,
-			Err::Error(e) => e,
-			Err::Failure(e) => e,
+			Err::Error(e) | Err::Failure(e) => e,
 		}
 	}
 }
