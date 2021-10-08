@@ -20,7 +20,8 @@ impl Auth {
 
 	/// check if the token is still valid
 	pub fn is_valid(&self) -> bool {
-		self.lease.is_none() || self.lease.as_ref().filter(|l| l.is_valid()).is_some()
+		!self.client_token.is_empty() && self.lease.is_none()
+			|| self.lease.as_ref().filter(|l| l.is_valid()).is_some()
 	}
 
 	/// check if the token needs a renewal

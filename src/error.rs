@@ -1,4 +1,6 @@
 use isahc::http::StatusCode;
+#[cfg(feature = "nom")]
+use nom::error::ErrorKind;
 use serde::Deserialize;
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -33,6 +35,23 @@ pub enum Error {
 	MountsNotFound,
 	#[error("undefined mount type {0}")]
 	UndefinedMountType(String),
+	#[error("unknown backend \"{0}\"")]
+	UnknowBackend(String),
+	#[error("missing the backend argument")]
+	NoBackend,
+	#[error("missing a \":\" to separate backend from arguments \"{0}\"")]
+	NoArgs(String),
+	#[error("missing a \":\" to separate arguments from path \"{0}\"")]
+	NoPath(String),
+	#[cfg(feature = "nom")]
+	#[error("extra data after path \"{0}\"")]
+	ExtraData(String),
+	#[cfg(feature = "nom")]
+	#[error("error with {} somewhere in \"{0}\"", .1.description())]
+	Nom(String, ErrorKind),
+	#[cfg(feature = "nom")]
+	#[error("incomplete data")]
+	Incomplete,
 }
 
 /// Vault errors deserialized

@@ -1,7 +1,7 @@
 use crate::lease::Lease;
 
 use serde_json::Value;
-use std::time::Duration;
+use std::{convert::TryFrom, fmt, time::Duration};
 
 /// A secret is a json value tied to an optional lease
 #[derive(Debug)]
@@ -65,32 +65,71 @@ impl PartialEq for Secret {
 	}
 }
 
-#[test]
-fn without_lease_is_valid() {
-	let secret = Secret::new(Value::String("secret".to_owned()), None);
-	assert_eq!(secret.is_valid(), true)
+/// Deserialize a SecretPath
+#[derive(PartialEq, Debug)]
+pub struct SecretPath<'a, T>
+where
+	T: TryFrom<&'a str> + fmt::Display,
+{
+	pub backend: T,
+	pub args: Vec<&'a str>,
+	pub kwargs: Option<Vec<(&'a str, &'a str)>>,
+	pub path: &'a str,
+	pub anchor: Option<&'a str>,
 }
 
-#[test]
-fn without_lease_needs_no_renew() {
-	let secret = Secret::new(Value::String("secret".to_owned()), None);
-	assert_eq!(secret.to_renew(), false)
+/// Serialize a SecretPath
+impl<'a, T> fmt::Display for SecretPath<'a, T>
+where
+	T: TryFrom<&'a str> + fmt::Display,
+{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{}:", self.backend)?;
+		write!(f, "{}", self.args.join(","))?;
+		if let Some(ref kwargs) = self.kwargs {
+			for (k, v) in kwargs.iter() {
+				write!(f, ",{}={}", k, v)?;
+			}
+		}
+		if let Some(anchor) = self.anchor.filter(|s| !s.is_empty()) {
+			write!(f, ":{}#{}", self.path, anchor)
+		} else {
+			write!(f, ":{}", self.path)
+		}
+	}
 }
 
-#[test]
-fn with_valid_lease_is_valid() {
-	let secret = Secret::new(
-		Value::String("secret".to_owned()),
-		Some(Duration::from_secs(10)),
-	);
-	assert_eq!(secret.is_valid(), true)
-}
+#[cfg(test)]
+mod test {
+	use super::*;
 
-#[test]
-fn with_expired_lease_is_invalid() {
-	let secret = Secret::new(
-		Value::String("secret".to_owned()),
-		Some(Duration::from_secs(0)),
-	);
-	assert_eq!(secret.is_valid(), false)
+	#[test]
+	fn without_lease_is_valid() {
+		let secret = Secret::new(Value::String("secret".to_owned()), None);
+		assert_eq!(secret.is_valid(), true)
+	}
+
+	#[test]
+	fn without_lease_needs_no_renew() {
+		let secret = Secret::new(Value::String("secret".to_owned()), None);
+		assert_eq!(secret.to_renew(), false)
+	}
+
+	#[test]
+	fn with_valid_lease_is_valid() {
+		let secret = Secret::new(
+			Value::String("secret".to_owned()),
+			Some(Duration::from_secs(10)),
+		);
+		assert_eq!(secret.is_valid(), true)
+	}
+
+	#[test]
+	fn with_expired_lease_is_invalid() {
+		let secret = Secret::new(
+			Value::String("secret".to_owned()),
+			Some(Duration::from_secs(0)),
+		);
+		assert_eq!(secret.is_valid(), false)
+	}
 }
