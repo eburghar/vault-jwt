@@ -74,22 +74,9 @@ where
 	pub backend: T,
 	pub args: Vec<&'a str>,
 	pub kwargs: Option<Vec<(&'a str, &'a str)>>,
+	pub path_anchor: &'a str,
 	pub path: &'a str,
 	pub anchor: Option<&'a str>,
-}
-
-impl<'a, T> SecretPath<'a, T>
-where
-	T: TryFrom<&'a str> + fmt::Display,
-{
-    /// concatenate path and anchor
-	pub fn get_path_anchor(&self) -> String {
-		if let Some(anchor) = self.anchor {
-			self.path.to_owned() + "#" + anchor
-		} else {
-			self.path.to_owned()
-		}
-	}
 }
 
 /// Serialize a SecretPath
@@ -105,11 +92,7 @@ where
 				write!(f, ",{}={}", k, v)?;
 			}
 		}
-		if let Some(anchor) = self.anchor.filter(|s| !s.is_empty()) {
-			write!(f, ":{}#{}", self.path, anchor)
-		} else {
-			write!(f, ":{}", self.path)
-		}
+		write!(f, ":{}", self.path_anchor)
 	}
 }
 

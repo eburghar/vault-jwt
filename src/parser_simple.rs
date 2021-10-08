@@ -10,7 +10,6 @@ enum Pos {
 	Backend,
 	Args,
 	Path,
-	Anchor,
 }
 
 /// Iterator, that returns the 3 successives slices separated by a colon from an expression
@@ -54,18 +53,6 @@ impl<'a> SecretPathIterator<'a> {
 			None => None,
 		}
 	}
-
-	/// returns the slice up to '#' or return the remainder
-	pub fn yield_colon_hash(&mut self) -> Option<&'a str> {
-		match self.remainder.find("#") {
-			Some(pos) => {
-				let res = &self.remainder[..pos];
-				self.remainder = &self.remainder[pos..];
-				Some(res)
-			}
-			None => self.yield_remainder(),
-		}
-	}
 }
 
 impl<'a> Iterator for SecretPathIterator<'a> {
@@ -84,11 +71,7 @@ impl<'a> Iterator for SecretPathIterator<'a> {
 					self.pos = Pos::Path;
 					self.yield_colon()
 				}
-				Pos::Path => {
-					self.pos = Pos::Anchor;
-					self.yield_colon_hash()
-				}
-				Pos::Anchor => self.yield_remainder(),
+				Pos::Path => self.yield_remainder(),
 			}
 		}
 	}
@@ -108,9 +91,17 @@ where
 		let backend =
 			T::try_from(backend_str).map_err(|_| Error::UnknowBackend(backend_str.to_owned()))?;
 		let args_ = it.next().ok_or(Error::NoArgs(path.to_owned()))?;
-		let path = it.next().ok_or(Error::NoPath(args_.to_owned()))?;
-		// # remove # from the anchor
-		let anchor = it.next().and_then(|s| Some(&s[1..]));
+		let path_anchor = it.next().ok_or(Error::NoPath(args_.to_owned()))?;
+		let (path, anchor) = if let Some(i) = path_anchor.rfind("#") {
+			let anchor = if i + 1 == path_anchor.len() {
+				""
+			} else {
+				&path_anchor[i + 1..]
+			};
+			(&path_anchor[..i], Some(anchor))
+		} else {
+			(path_anchor, None)
+		};
 		// split simple and keyword arguments in separate lists
 		let mut args = Vec::with_capacity(args_.len());
 		let mut kwargs = Vec::with_capacity(args_.len());
@@ -130,6 +121,7 @@ where
 			} else {
 				Some(kwargs)
 			},
+			path_anchor,
 			path,
 			anchor,
 		})
@@ -180,6 +172,7 @@ mod tests {
 				backend: Backend::Vault,
 				args: vec!["role", "POST"],
 				kwargs: Some(vec![("common_name", "example.com")]),
+				path_anchor: "pki/issue/example.com#/data",
 				path: "pki/issue/example.com",
 				anchor: Some("/data")
 			}
@@ -196,6 +189,7 @@ mod tests {
 				backend: Backend::Const,
 				args: vec!["str"],
 				kwargs: None,
+				path_anchor: "https://localhost:8200#",
 				path: "https://localhost:8200",
 				anchor: Some("")
 			}
@@ -212,6 +206,7 @@ mod tests {
 				backend: Backend::Const,
 				args: vec!["js"],
 				kwargs: None,
+				path_anchor: r#"{"key": "val"}"#,
 				path: r#"{"key": "val"}"#,
 				anchor: None
 			}

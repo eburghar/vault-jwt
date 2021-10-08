@@ -7,10 +7,10 @@ use nom::{
 	branch::alt,
 	bytes::complete::{is_not, tag},
 	character::complete::alpha1,
-	combinator::{map, map_res, opt, recognize, rest},
+	combinator::{map, map_res, recognize, rest},
 	error::{ErrorKind, FromExternalError, ParseError},
 	multi::{many1, separated_list1},
-	sequence::{separated_pair, terminated, tuple, preceded},
+	sequence::{separated_pair, terminated, tuple},
 	Err,
 };
 use std::{
@@ -81,7 +81,18 @@ where
 		if path.is_empty() {
 			Err(Error::NoBackend)?;
 		}
-		let (rest, (backend, args, path, anchor)) = secret_path(path)?;
+		let (rest, (backend, args, path_anchor)) = secret_path(path)?;
+		// convenience to split path_anchor into path and anchor without doing any copy
+		let (path, anchor) = if let Some(i) = path_anchor.rfind("#") {
+			let anchor = if i + 1 == path_anchor.len() {
+				""
+			} else {
+				&path_anchor[i + 1..]
+			};
+			(&path_anchor[..i], Some(anchor))
+		} else {
+			(path_anchor, None)
+		};
 		if !rest.is_empty() {
 			Err(Error::ExtraData(rest.to_owned()))?;
 		}
@@ -90,8 +101,9 @@ where
 			backend,
 			args,
 			kwargs,
+			path_anchor,
 			path,
-			anchor
+			anchor,
 		})
 	}
 }
@@ -107,10 +119,6 @@ fn no_path(input: &str) -> IResult<&str> {
 /// parse a literal which is anything that is not a delimiter of other token
 fn literal(input: &str) -> IResult<&str> {
 	recognize(many1(is_not(":,=")))(input)
-}
-
-fn path(input: &str) -> IResult<&str> {
-	recognize(many1(is_not("#")))(input)
 }
 
 /// parse a backend a convert to the Backend enum
@@ -160,7 +168,7 @@ fn splitargs(args: Args) -> (Vec<&str>, Option<Vec<(&str, &str)>>) {
 
 /// parse the secret path which has the folowing structure
 /// backend:arg1,arg2,k1=v1,k2=v2:path
-fn secret_path<'a, T>(input: &'a str) -> IResult<(T, Args, &str, Option<&str>)>
+fn secret_path<'a, T>(input: &'a str) -> IResult<(T, Args, &str)>
 where
 	T: TryFrom<&'a str> + Display,
 	Error: FromExternalError<&'a str, T::Error>,
@@ -168,8 +176,7 @@ where
 	tuple((
 		terminated(backend, alt((tag(":"), no_args))),
 		terminated(arg1, alt((tag(":"), no_path))),
-		path,
-		opt(preceded(tag("#"), rest)),
+		rest,
 	))(input)
 }
 
@@ -235,8 +242,7 @@ mod test {
 				(
 					Backend::Vault,
 					vec![Arg::Arg("arg1"), Arg::Arg("arg2")],
-					"comp1/comp2/comp3",
-					None
+					"comp1/comp2/comp3"
 				)
 			)
 		);
@@ -252,8 +258,7 @@ mod test {
 				(
 					Backend::Vault,
 					vec![Arg::Arg("arg1"), Arg::Arg("arg2")],
-					"comp1/comp2:comp3",
-					None
+					"comp1/comp2:comp3"
 				)
 			)
 		);
@@ -269,8 +274,7 @@ mod test {
 				(
 					Backend::Vault,
 					vec![Arg::Arg("arg1"), Arg::Arg("arg2")],
-					"comp1/comp2:comp3",
-					Some("anchor")
+					"comp1/comp2:comp3#anchor"
 				)
 			)
 		);
@@ -290,8 +294,7 @@ mod test {
 						Arg::Arg("arg2"),
 						Arg::KwArg(("cn", "test"))
 					],
-					"comp1/comp2/comp3",
-					Some("anchor")
+					"comp1/comp2/comp3#anchor"
 				)
 			)
 		);
