@@ -74,7 +74,7 @@ where
 	pub backend: T,
 	pub args: Vec<&'a str>,
 	pub kwargs: Option<Vec<(&'a str, &'a str)>>,
-	pub path_anchor: &'a str,
+	pub full_path: &'a str,
 	pub path: &'a str,
 	pub anchor: Option<&'a str>,
 }
@@ -92,7 +92,7 @@ where
 				write!(f, ",{}={}", k, v)?;
 			}
 		}
-		write!(f, ":{}", self.path_anchor)
+		write!(f, ":{}", self.full_path)
 	}
 }
 

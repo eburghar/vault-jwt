@@ -121,7 +121,7 @@ where
 			} else {
 				Some(kwargs)
 			},
-			path_anchor,
+			full_path: path_anchor,
 			path,
 			anchor,
 		})
@@ -172,7 +172,7 @@ mod tests {
 				backend: Backend::Vault,
 				args: vec!["role", "POST"],
 				kwargs: Some(vec![("common_name", "example.com")]),
-				path_anchor: "pki/issue/example.com#/data",
+				full_path: "pki/issue/example.com#/data",
 				path: "pki/issue/example.com",
 				anchor: Some("/data")
 			}
@@ -189,7 +189,7 @@ mod tests {
 				backend: Backend::Const,
 				args: vec!["str"],
 				kwargs: None,
-				path_anchor: "https://localhost:8200#",
+				full_path: "https://localhost:8200#",
 				path: "https://localhost:8200",
 				anchor: Some("")
 			}
@@ -206,7 +206,7 @@ mod tests {
 				backend: Backend::Const,
 				args: vec!["js"],
 				kwargs: None,
-				path_anchor: r#"{"key": "val"}"#,
+				full_path: r#"{"key": "val"}"#,
 				path: r#"{"key": "val"}"#,
 				anchor: None
 			}
