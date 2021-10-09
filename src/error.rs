@@ -43,6 +43,8 @@ pub enum Error {
 	NoArgs(String),
 	#[error("missing a \":\" to separate arguments from path \"{0}\"")]
 	NoPath(String),
+	#[error("json pointer \"{0}\" returns no result")]
+	Pointer(String),
 	#[cfg(feature = "nom")]
 	#[error("extra data after path \"{0}\"")]
 	ExtraData(String),
