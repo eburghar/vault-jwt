@@ -137,7 +137,6 @@ impl VaultClient {
 		role: &str,
 		method: &str,
 		path: &str,
-		anchor: Option<&str>,
 		kwargs: Option<&Vec<(&str, &str)>>,
 	) -> Result<Secret> {
 		if let Some(auth) = self.auth.get(role) {
@@ -171,23 +170,13 @@ impl VaultClient {
 				let mut secret_value: Value =
 					res.json().map_err(|e| Error::ParseError { source: e })?;
 
-				// follow "data" (seems like a convention in vault api) and then pointer if any
-				secret_value = if let Some(anchor) = anchor {
-					secret_value["data"]
-						.pointer_mut(anchor)
-						.ok_or_else(|| Error::Pointer(anchor.to_owned()))?
-						.take()
-				} else {
-					secret_value["data"].take()
-				};
-
 				let duration = secret_value
 					.get("lease_duration")
 					.map(|o| o.as_u64().unwrap_or(0u64))
 					.filter(|o| *o != 0u64)
 					.map(|o| Duration::from_secs(o * 2 / 3));
 				// return the parsed secret (only the data part)
-				Ok(Secret::new(secret_value, duration))
+				Ok(Secret::new(secret_value["data"].take(), duration))
 			} else {
 				// parse vault error
 				let errors: VaultErrors =
@@ -205,7 +194,6 @@ impl VaultClient {
 		role: &str,
 		method: &str,
 		path: &str,
-		anchor: Option<&str>,
 		kwargs: Option<&Vec<(&str, &str)>>,
 	) -> Result<Secret> {
 		if let Some(auth) = self.auth.get(role) {
@@ -242,23 +230,13 @@ impl VaultClient {
 					.await
 					.map_err(|e| Error::ParseError { source: e })?;
 
-				// follow "data" (seems like a convention in vault api) and then pointer if any
-				secret_value = if let Some(anchor) = anchor {
-					secret_value["data"]
-						.pointer_mut(anchor)
-						.ok_or_else(|| Error::Pointer(anchor.to_owned()))?
-						.take()
-				} else {
-					secret_value["data"].take()
-				};
-
 				let duration = secret_value
 					.get("lease_duration")
 					.map(|o| o.as_u64().unwrap_or(0u64))
 					.filter(|o| *o != 0u64)
 					.map(|o| Duration::from_secs(o * 2 / 3));
 				// return the parsed secret (only the data part)
-				Ok(Secret::new(secret_value, duration))
+				Ok(Secret::new(secret_value["data"].take(), duration))
 			} else {
 				// parse vault error
 				let errors: VaultErrors = res
