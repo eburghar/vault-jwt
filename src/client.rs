@@ -9,7 +9,7 @@ use isahc::{
 	http::{Request, StatusCode},
 	AsyncReadResponseExt, HttpClient, ReadResponseExt,
 };
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, json};
 use std::{collections::HashMap, time::Duration};
 
 /// Vault client that cache its auth tokens
@@ -51,7 +51,7 @@ impl VaultClient {
 	pub fn login(&mut self, role: &str) -> Result<&Auth> {
 		if !self.is_logged(role) {
 			let url = format!("{}{}", &self.url, &self.login_path);
-			let body = format!(r#"{{"role": "{}", "jwt": "{}"}}"#, role, &self.jwt);
+			let body = json!({"role": role, "jwt": &self.jwt}).to_string();
 			let mut res = self
 				.client
 				.post(url, body)
@@ -91,7 +91,7 @@ impl VaultClient {
 
 		if !self.is_logged(role) {
 			let url = format!("{}{}", &self.url, &self.login_path);
-			let body = format!(r#"{{"role": "{}", "jwt": "{}"}}"#, role, &self.jwt);
+			let body = json!({"role": role, "jwt": &self.jwt}).to_string();
 			let mut res = self
 				.client
 				.post_async(url, body)
